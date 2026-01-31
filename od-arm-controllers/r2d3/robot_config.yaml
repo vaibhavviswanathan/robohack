@@ -1,0 +1,13 @@
+left_arm:
+  ip: "169.254.128.18"
+  port: 8080
+  install_angle: [0, 45, 0] # deg
+  work_cs: [0, 0, 0, 0, 0, -3.14159]
+  tool_cs: [0, 0, 0, 0, 0, 0]
+
+right_arm:
+  ip: "169.254.128.19"
+  port: 8080
+  install_angle: [0, -45, 0] # deg
+  work_cs: [0, 0, 0, 0, 0, 3.14159]
+  tool_cs: [0, 0, 0.135, 0, 0, 0] # meters
