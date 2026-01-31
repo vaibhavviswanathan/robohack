@@ -1,1 +1,2 @@
--e ./lerobot[smolvla]
+-e ./lerobot[feetech,dynamixel,smolvla]
+-e ./solo-cli

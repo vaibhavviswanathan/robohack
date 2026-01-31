@@ -14,8 +14,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .motors_bus import (
-    Motor,
-    MotorCalibration,
-    MotorNormMode,
-)
+from .motors_bus import Motor, MotorCalibration, MotorNormMode, MotorsBus

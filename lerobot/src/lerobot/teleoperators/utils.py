@@ -75,10 +75,6 @@ def make_teleoperator_from_config(config: TeleoperatorConfig) -> "Teleoperator":
         from .homunculus import HomunculusArm
 
         return HomunculusArm(config)
-    elif config.type == "unitree_g1":
-        from .unitree_g1 import UnitreeG1Teleoperator
-
-        return UnitreeG1Teleoperator(config)
     elif config.type == "bi_so_leader":
         from .bi_so_leader import BiSOLeader
 
@@ -87,14 +83,6 @@ def make_teleoperator_from_config(config: TeleoperatorConfig) -> "Teleoperator":
         from .reachy2_teleoperator import Reachy2Teleoperator
 
         return Reachy2Teleoperator(config)
-    elif config.type == "openarm_leader":
-        from .openarm_leader import OpenArmLeader
-
-        return OpenArmLeader(config)
-    elif config.type == "bi_openarm_leader":
-        from .bi_openarm_leader import BiOpenArmLeader
-
-        return BiOpenArmLeader(config)
     else:
         try:
             return cast("Teleoperator", make_device_from_device_class(config))
