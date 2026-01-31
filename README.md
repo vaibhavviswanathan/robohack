@@ -33,9 +33,7 @@ brew install python@3.10
 ---
 *Note: This project uses editable installs for `lerobot` and `solo-cli`. Changes made in those directories will reflect immediately in your environment.*
 
-# ==========================================
-# QUICK START COMMANDS
-# ==========================================
+# Quick Start Commands
 ```bash
 uv sync
 source .venv/bin/activate
