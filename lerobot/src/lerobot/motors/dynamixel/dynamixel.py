@@ -22,8 +22,9 @@ import logging
 from copy import deepcopy
 from enum import Enum
 
-from ..encoding_utils import decode_twos_complement, encode_twos_complement
-from ..motors_bus import Motor, MotorCalibration, NameOrID, SerialMotorsBus, Value, get_address
+from lerobot.motors.encoding_utils import decode_twos_complement, encode_twos_complement
+
+from ..motors_bus import Motor, MotorCalibration, MotorsBus, NameOrID, Value, get_address
 from .tables import (
     AVAILABLE_BAUDRATES,
     MODEL_BAUDRATE_TABLE,
@@ -99,7 +100,20 @@ def _split_into_byte_chunks(value: int, length: int) -> list[int]:
     return data
 
 
-class DynamixelMotorsBus(SerialMotorsBus):
+def patch_setPacketTimeout(self, packet_length):  # noqa: N802
+    """
+    Patches the PortHandler behavior to add extra timeout buffer for more stable communication.
+
+    This is similar to the fix applied for Feetech motors that adds extra buffer time,
+    making Dynamixel communication more tolerant of slow responses.
+    See: https://gitee.com/ftservo/SCServoSDK/issues/IBY2S6
+    """
+    self.packet_start_time = self.getCurrentTime()
+    # Add 50ms buffer to the calculated timeout for more stable communication
+    self.packet_timeout = (self.tx_time_per_byte * packet_length) + (self.tx_time_per_byte * 3.0) + 50
+
+
+class DynamixelMotorsBus(MotorsBus):
     """
     The Dynamixel implementation for a MotorsBus. It relies on the python dynamixel sdk to communicate with
     the motors. For more info, see the Dynamixel SDK Documentation:
@@ -127,6 +141,10 @@ class DynamixelMotorsBus(SerialMotorsBus):
         import dynamixel_sdk as dxl
 
         self.port_handler = dxl.PortHandler(self.port)
+        # Apply timeout patch for more stable communication (similar to Feetech fix)
+        self.port_handler.setPacketTimeout = patch_setPacketTimeout.__get__(
+            self.port_handler, dxl.PortHandler
+        )
         self.packet_handler = dxl.PacketHandler(PROTOCOL_VERSION)
         self.sync_reader = dxl.GroupSyncRead(self.port_handler, self.packet_handler, 0, 0)
         self.sync_writer = dxl.GroupSyncWrite(self.port_handler, self.packet_handler, 0, 0)
@@ -165,17 +183,18 @@ class DynamixelMotorsBus(SerialMotorsBus):
         # By default, Dynamixel motors have a 500µs delay response time (corresponding to a value of 250 on
         # the 'Return_Delay_Time' address). We ensure this is reduced to the minimum of 2µs (value of 0).
         for motor in self.motors:
-            self.write("Return_Delay_Time", motor, return_delay_time)
+            self.write("Return_Delay_Time", motor, return_delay_time, num_retry=3)
 
     @property
     def is_calibrated(self) -> bool:
         return self.calibration == self.read_calibration()
 
     def read_calibration(self) -> dict[str, MotorCalibration]:
-        offsets = self.sync_read("Homing_Offset", normalize=False)
-        mins = self.sync_read("Min_Position_Limit", normalize=False)
-        maxes = self.sync_read("Max_Position_Limit", normalize=False)
-        drive_modes = self.sync_read("Drive_Mode", normalize=False)
+        # Use retries for more stable calibration reads
+        offsets = self.sync_read("Homing_Offset", normalize=False, num_retry=3)
+        mins = self.sync_read("Min_Position_Limit", normalize=False, num_retry=3)
+        maxes = self.sync_read("Max_Position_Limit", normalize=False, num_retry=3)
+        drive_modes = self.sync_read("Drive_Mode", normalize=False, num_retry=3)
 
         calibration = {}
         for motor, m in self.motors.items():
@@ -190,10 +209,11 @@ class DynamixelMotorsBus(SerialMotorsBus):
         return calibration
 
     def write_calibration(self, calibration_dict: dict[str, MotorCalibration], cache: bool = True) -> None:
+        # Use retries for more stable calibration writes
         for motor, calibration in calibration_dict.items():
-            self.write("Homing_Offset", motor, calibration.homing_offset)
-            self.write("Min_Position_Limit", motor, calibration.range_min)
-            self.write("Max_Position_Limit", motor, calibration.range_max)
+            self.write("Homing_Offset", motor, calibration.homing_offset, num_retry=3)
+            self.write("Min_Position_Limit", motor, calibration.range_min, num_retry=3)
+            self.write("Max_Position_Limit", motor, calibration.range_max, num_retry=3)
 
         if cache:
             self.calibration = calibration_dict
@@ -202,9 +222,9 @@ class DynamixelMotorsBus(SerialMotorsBus):
         for motor in self._get_motors_list(motors):
             self.write("Torque_Enable", motor, TorqueMode.DISABLED.value, num_retry=num_retry)
 
-    def _disable_torque(self, motor: int, model: str, num_retry: int = 0) -> None:
+    def _disable_torque(self, motor_id: int, model: str, num_retry: int = 0) -> None:
         addr, length = get_address(self.model_ctrl_table, model, "Torque_Enable")
-        self._write(addr, length, motor, TorqueMode.DISABLED.value, num_retry=num_retry)
+        self._write(addr, length, motor_id, TorqueMode.DISABLED.value, num_retry=num_retry)
 
     def enable_torque(self, motors: str | list[str] | None = None, num_retry: int = 0) -> None:
         for motor in self._get_motors_list(motors):

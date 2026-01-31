@@ -441,13 +441,12 @@ def test_sac_policy_with_predefined_entropy():
 
 
 def test_sac_policy_update_temperature():
-    """Test that temperature property is always in sync with log_alpha."""
     config = create_default_config(continuous_action_dim=10, state_dim=10)
     policy = SACPolicy(config=config)
 
     assert policy.temperature == pytest.approx(1.0)
     policy.log_alpha.data = torch.tensor([math.log(0.1)])
-    # Temperature property automatically reflects log_alpha changes
+    policy.update_temperature()
     assert policy.temperature == pytest.approx(0.1)
 
 

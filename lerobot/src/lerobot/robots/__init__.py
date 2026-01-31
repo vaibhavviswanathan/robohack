@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from . import realman_follower
 from .config import RobotConfig
+from .realman_follower import RealManFollower, RealManFollowerConfig
 from .robot import Robot
 from .utils import make_robot_from_config

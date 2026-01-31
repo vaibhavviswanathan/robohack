@@ -18,7 +18,7 @@ from enum import IntEnum
 
 # ruff: noqa: N801, N815
 
-NUM_MOTORS = 29
+NUM_MOTORS = 35
 
 
 class G1_29_JointArmIndex(IntEnum):

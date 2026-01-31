@@ -57,7 +57,6 @@ from lerobot.datasets.utils import (
     load_info,
     load_nested_dataset,
     load_stats,
-    load_subtasks,
     load_tasks,
     update_chunk_file_indices,
     validate_episode_buffer,
@@ -104,12 +103,24 @@ class LeRobotDatasetMetadata:
                 raise FileNotFoundError
             self.load_metadata()
         except (FileNotFoundError, NotADirectoryError):
-            if is_valid_version(self.revision):
-                self.revision = get_safe_version(self.repo_id, self.revision)
+            # Skip HuggingFace operations for local-only datasets
+            if repo_id.startswith("local/"):
+                # For local datasets, just create the directory structure
+                (self.root / "meta").mkdir(exist_ok=True, parents=True)
+                # Don't try to pull from HuggingFace - this is a local-only dataset
+                # If metadata doesn't exist yet, it will be created during recording
+                try:
+                    self.load_metadata()
+                except (FileNotFoundError, NotADirectoryError):
+                    # Initialize empty metadata for new local datasets
+                    pass
+            else:
+                if is_valid_version(self.revision):
+                    self.revision = get_safe_version(self.repo_id, self.revision)
 
-            (self.root / "meta").mkdir(exist_ok=True, parents=True)
-            self.pull_from_repo(allow_patterns="meta/")
-            self.load_metadata()
+                (self.root / "meta").mkdir(exist_ok=True, parents=True)
+                self.pull_from_repo(allow_patterns="meta/")
+                self.load_metadata()
 
     def _flush_metadata_buffer(self) -> None:
         """Write all buffered episode metadata to parquet file."""
@@ -163,7 +174,6 @@ class LeRobotDatasetMetadata:
         self.info = load_info(self.root)
         check_version_compatibility(self.repo_id, self._version, CODEBASE_VERSION)
         self.tasks = load_tasks(self.root)
-        self.subtasks = load_subtasks(self.root)
         self.episodes = load_episodes(self.root)
         self.stats = load_stats(self.root)
 
@@ -520,7 +530,6 @@ class LeRobotDatasetMetadata:
         _validate_feature_names(features)
 
         obj.tasks = None
-        obj.subtasks = None
         obj.episodes = None
         obj.stats = None
         obj.info = create_empty_dataset_info(
@@ -730,10 +739,22 @@ class LeRobotDataset(torch.utils.data.Dataset):
             if not self._check_cached_episodes_sufficient():
                 raise FileNotFoundError("Cached dataset doesn't contain all requested episodes")
         except (AssertionError, FileNotFoundError, NotADirectoryError):
-            if is_valid_version(self.revision):
-                self.revision = get_safe_version(self.repo_id, self.revision)
-            self.download(download_videos)
-            self.hf_dataset = self.load_hf_dataset()
+            # Skip HuggingFace operations for local-only datasets
+            if self.repo_id.startswith("local/"):
+                # For local datasets, don't try to download from HuggingFace
+                # Just try to load what exists locally
+                try:
+                    self.hf_dataset = self.load_hf_dataset()
+                except (FileNotFoundError, NotADirectoryError):
+                    raise FileNotFoundError(
+                        f"Local dataset '{self.repo_id}' not found at {self.root}. "
+                        f"Make sure the dataset exists locally."
+                    )
+            else:
+                if is_valid_version(self.revision):
+                    self.revision = get_safe_version(self.repo_id, self.revision)
+                self.download(download_videos)
+                self.hf_dataset = self.load_hf_dataset()
 
         # Create mapping from absolute indices to relative indices when only a subset of the episodes are loaded
         # Build a mapping: absolute_index -> relative_index_in_filtered_dataset
@@ -1078,12 +1099,6 @@ class LeRobotDataset(torch.utils.data.Dataset):
         # Add task as a string
         task_idx = item["task_index"].item()
         item["task"] = self.meta.tasks.iloc[task_idx].name
-
-        # add subtask information if available
-        if "subtask_index" in self.features and self.meta.subtasks is not None:
-            subtask_idx = item["subtask_index"].item()
-            item["subtask"] = self.meta.subtasks.iloc[subtask_idx].name
-
         return item
 
     def __repr__(self):

@@ -60,7 +60,6 @@ VIDEO_DIR = "videos"
 
 CHUNK_FILE_PATTERN = "chunk-{chunk_index:03d}/file-{file_index:03d}"
 DEFAULT_TASKS_PATH = "meta/tasks.parquet"
-DEFAULT_SUBTASKS_PATH = "meta/subtasks.parquet"
 DEFAULT_EPISODES_PATH = EPISODES_DIR + "/" + CHUNK_FILE_PATTERN + ".parquet"
 DEFAULT_DATA_PATH = DATA_DIR + "/" + CHUNK_FILE_PATTERN + ".parquet"
 DEFAULT_VIDEO_PATH = VIDEO_DIR + "/{video_key}/" + CHUNK_FILE_PATTERN + ".mp4"
@@ -354,14 +353,6 @@ def load_tasks(local_dir: Path) -> pandas.DataFrame:
     return tasks
 
 
-def load_subtasks(local_dir: Path) -> pandas.DataFrame | None:
-    """Load subtasks from subtasks.parquet if it exists."""
-    subtasks_path = local_dir / DEFAULT_SUBTASKS_PATH
-    if subtasks_path.exists():
-        return pd.read_parquet(subtasks_path)
-    return None
-
-
 def write_episodes(episodes: Dataset, local_dir: Path) -> None:
     """Write episode metadata to a parquet file in the LeRobot v3.0 format.
     This function writes episode-level metadata to a single parquet file.
@@ -532,6 +523,14 @@ def get_safe_version(repo_id: str, version: str | packaging.version.Version) -> 
         BackwardCompatibilityError: If only older major versions are available.
         ForwardCompatibilityError: If only newer major versions are available.
     """
+    # Skip HuggingFace Hub check for local-only datasets
+    if repo_id.startswith("local/"):
+        # For local datasets, just return the target version as-is
+        target_version = (
+            packaging.version.parse(version) if not isinstance(version, packaging.version.Version) else version
+        )
+        return f"v{target_version}"
+    
     target_version = (
         packaging.version.parse(version) if not isinstance(version, packaging.version.Version) else version
     )
