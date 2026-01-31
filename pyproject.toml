@@ -1,0 +1,16 @@
+[project]
+name = "my-robotics-project"
+version = "0.1.0"
+description = "Project using lerobot and solo-cli"
+requires-python = "==3.10.*"
+dependencies = [
+    "lerobot[feetech,dynamixel,smolvla]",
+    "solo-cli",
+]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.uv.sources]
+lerobot = { path = "./lerobot", editable = true }
+solo-cli = { path = "./solo-cli", editable = true }
